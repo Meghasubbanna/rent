@@ -1,6 +1,10 @@
 package models
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 type User struct {
 	ID         primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
@@ -23,5 +27,24 @@ type Rentee struct {
 	Name         string `json:"Rentee_name" bson:"Rentee_name"`
 	Rentee_Email string `json:"Rentee_email" bson:"rentee_email"`
 }
+type Book struct {
+	//ID               primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
+	Book_id          string `json:"book_id" bson:"book_id"`
+	Book_name        string `json:"book_name" bson:"book_name"`
+	Rentee_id        string `json:"rentee_id" bson:"rentee_id"`
+	Book_Description string `json:"book_description" bson:"book_description"`
+	Book_Price       int    `json:"book_price" bson:"book_price"`
+	Book_Author      string `json:"book_author" bson:"book_author"`
+	Book_Category    string `json:"book_category" bson:"book_category"`
+}
 
-
+type BuyRentBook struct {
+	Renter_id          string    `json:"renter_id" bson:"renter_id"`
+	Renter_name        string    `json:"renter_name" bson:"renter_name"`
+	Book_name          string    `json:"book_name" bson:"book_name"`
+	Book_Category      string    `json:"book_category" bson:"book_category"`
+	Book_Price         int       `json:"book_price" bson:"book_price"`
+	Rentee_id          string    `json:"rentee_id" bson:"rentee_id"`
+	Book_Purchase_time time.Time `json:"book_purchase_time" bson:"book_purchase_time"`
+	Book_Return_time   time.Time `json:"book_return_time" bson:"book_return_time"`
+}

@@ -1,11 +1,13 @@
 package controller
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -17,8 +19,16 @@ import (
 	"github.com/omprakas123/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
 )
+
+type RenteeInfo struct {
+	Rentee_id string `json:"rentee_id" bson:"rentee_id"`
+}
+
+var RenteeUser RenteeInfo
 
 var Secret_key = []byte("Cochin university")
 
@@ -79,12 +89,12 @@ func AddRentee(user models.User, w http.ResponseWriter) {
 	renteeUser.User_id = user.User_id
 	renteeUser.Name = user.First_name + " " + user.Last_name
 	renteeUser.Rentee_Email = user.Email
-
+	RenteeUser.Rentee_id = user.User_id
 	RenteeCol := database.Client1.Database("Rentaluser").Collection("Rentee")
 	ctx, _ := context.WithTimeout(context.Background(), 100*time.Second)
 	res, _ := RenteeCol.InsertOne(ctx, renteeUser)
 	json.NewEncoder(w).Encode(res)
-
+	fmt.Println("Hey! the user is rentee so you can add a book")
 }
 func Signup(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("hello")
@@ -147,4 +157,97 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write([]byte(`{"token":"` + jwtToken + `"}`))
+}
+
+func BookCreation(w http.ResponseWriter, r *http.Request) {
+	// fmt.Println("hello")
+	w.Header().Set("Content-Type", "application/json")
+	var user models.Book
+	json.NewDecoder(r.Body).Decode(&user)
+	user.Rentee_id = RenteeUser.Rentee_id
+	user.Book_id = primitive.NewObjectID().Hex()
+	fmt.Println(user.Book_id)
+	// fmt.Println(user)
+	collection1 := database.Client1.Database("Rentaluser").Collection("Book")
+	ctx, _ := context.WithTimeout(context.Background(), 100*time.Second)
+	result, err := collection1.InsertOne(ctx, user)
+	if err != nil {
+		log.Fatal(err)
+	}
+	json.NewEncoder(w).Encode(result)
+	RenteeUser = RenteeInfo{}
+}
+
+func AvailableBooks(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	BookAvailability := r.URL.Query().Get("bookcategory")
+	//fmt.Println(BookAvailability)
+	BookCollection, err := GetBookCategory(BookAvailability)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"message":"This Book category is not available in the database"}`))
+		return
+	}
+	json.NewEncoder(w).Encode(BookCollection)
+}
+
+func GetBookCategory(BookAvailability string) ([]models.Book, error) {
+	collection1 := database.Client1.Database("Rentaluser").Collection("Book")
+	ctx, _ := context.WithTimeout(context.Background(), 100*time.Second)
+	filterBook := bson.M{"book_category": BookAvailability}
+	Bookstore, err := collection1.Find(ctx, filterBook)
+	if err != nil {
+		return nil, err
+	}
+	defer Bookstore.Close(ctx)
+	var Bookcategory []models.Book
+	for Bookstore.Next(ctx) {
+		var bookDetail models.Book
+		if err := Bookstore.Decode(&bookDetail); err != nil {
+			return nil, err
+		}
+		fmt.Println(Bookstore)
+		Bookcategory = append(Bookcategory, bookDetail)
+	}
+	if err := Bookstore.Err(); err != nil {
+		return nil, err
+	}
+	//fmt.Println(Bookcategory)
+	return Bookcategory, nil
+}
+
+func BookPurchase(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	collection1 := database.Client1.Database("Rentaluser").Collection("Book")
+	ctx, _ := context.WithTimeout(context.Background(), 100*time.Second)
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Println("Give a book name:")
+	bookname, _ := reader.ReadString('\n')
+	fmt.Println(bookname)
+	filterBook := bson.M{"Book_name": bookname}
+	var result models.Book
+	project := bson.D{{"Book_name", 1}}
+	opts := options.FindOne().SetProjection(project)
+	if err := collection1.FindOne(ctx, filterBook, opts).Decode(&result); err != nil {
+		if err == mongo.ErrNoDocuments {
+			http.Error(w, "Book not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			log.Fatal(err)
+		}
+		return
+
+	}
+
+	// err := collection1.FindOne(ctx, filterBook, opts).Decode(&result)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// collection2 := database.Client1.Database("Rentaluser").Collection("BuyRentBook")
+	// var userdata models.BuyRentBook
+	// json.NewDecoder(r.Body).Decode(&userdata)
+	// userdata.Rentee_id = GetaBook.Rentee_id
+	json.NewEncoder(w).Encode(result)
+
+	//fmt.Println(result)
 }
